@@ -7,21 +7,23 @@ jobs:
   run:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      - name: Install xray
+      - name: Download Xray binary
         run: |
-          bash -c "$(curl -L https://github.com/XTLS/Xray-install/raw/main/install-release.sh)" @ install
+          curl -L -o xray.zip https://github.com/XTLS/Xray-core/releases/latest/download/Xray-linux-64.zip
+          unzip xray.zip
+          chmod +x xray
 
-      - name: Generate config
+      - name: Generate config and run
         run: |
           UUID=$(cat /proc/sys/kernel/random/uuid)
-          mkdir -p ~/xray-config
-          cat > ~/xray-config/config.json <<EOF
+          cat > config.json <<EOF
           {
             "inbounds": [
               {
-                "port": 12345,
+                "port": 8080,
                 "protocol": "vless",
                 "settings": {
                   "clients": [
@@ -34,7 +36,12 @@ jobs:
                 },
                 "streamSettings": {
                   "network": "tcp",
-                  "security": "none"
+                  "security": "none",
+                  "tcpSettings": {
+                    "header": {
+                      "type": "none"
+                    }
+                  }
                 }
               }
             ],
@@ -46,13 +53,16 @@ jobs:
           }
           EOF
 
-      - name: Run xray in background
-        run: |
-          xray -c ~/xray-config/config.json &
+          # اجرا در پس‌زمینه
+          nohup ./xray -c config.json &
           sleep 5
-          echo "Xray is running on port 12345"
-          IP=$(curl -s ifconfig.me)
-          echo "VLESS link: vless://$UUID@$IP:12345?encryption=none&security=none&type=tcp#GitHub-Actions-Xray"
 
-      - name: Keep alive for 10 minutes
-        run: sleep 600
+          IP=$(curl -s ifconfig.me)
+          PORT=8080
+          echo "=============================="
+          echo "VLESS Config:"
+          echo "vless://$UUID@$IP:$PORT?encryption=none&flow=xtls-rprx-vision&security=none&type=tcp#XRay-GitHub-Actions"
+          echo "=============================="
+          echo "Service is running on $IP:$PORT"
+          echo "Keep-alive for 15 minutes (you can connect now)"
+          sleep 900
