@@ -1,0 +1,58 @@
+name: Run Xray and get config
+
+on:
+  workflow_dispatch:
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install xray
+        run: |
+          bash -c "$(curl -L https://github.com/XTLS/Xray-install/raw/main/install-release.sh)" @ install
+
+      - name: Generate config
+        run: |
+          UUID=$(cat /proc/sys/kernel/random/uuid)
+          mkdir -p ~/xray-config
+          cat > ~/xray-config/config.json <<EOF
+          {
+            "inbounds": [
+              {
+                "port": 12345,
+                "protocol": "vless",
+                "settings": {
+                  "clients": [
+                    {
+                      "id": "$UUID",
+                      "flow": "xtls-rprx-vision"
+                    }
+                  ],
+                  "decryption": "none"
+                },
+                "streamSettings": {
+                  "network": "tcp",
+                  "security": "none"
+                }
+              }
+            ],
+            "outbounds": [
+              {
+                "protocol": "freedom"
+              }
+            ]
+          }
+          EOF
+
+      - name: Run xray in background
+        run: |
+          xray -c ~/xray-config/config.json &
+          sleep 5
+          echo "Xray is running on port 12345"
+          IP=$(curl -s ifconfig.me)
+          echo "VLESS link: vless://$UUID@$IP:12345?encryption=none&security=none&type=tcp#GitHub-Actions-Xray"
+
+      - name: Keep alive for 10 minutes
+        run: sleep 600
